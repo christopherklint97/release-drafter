@@ -99810,8 +99810,8 @@ class Context {
         }, this.repo(object));
     }
     /**
-     * Return the `owner`, `repo`, and `issue_number` params for making API requests
-     * against an issue. The object passed in will be merged with the repo params.
+     * Return the `owner`, `repo`, and `pull_number` params for making API requests
+     * against a pull request. The object passed in will be merged with the repo params.
      *
      *
      * ```js
@@ -100095,30 +100095,42 @@ exports.getLog = getLog;
 /***/ }),
 
 /***/ 32350:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.resolveAppFunction = void 0;
 const resolve_1 = __nccwpck_require__(39283);
 const defaultOptions = {};
-const resolveAppFunction = (appFnId, opts) => {
+const resolveAppFunction = async (appFnId, opts) => {
     opts = opts || defaultOptions;
     // These are mostly to ease testing
     const basedir = opts.basedir || process.cwd();
     const resolver = opts.resolver || resolve_1.sync;
     const appFnPath = resolver(appFnId, { basedir });
-    const mod = require(appFnPath);
-    if (typeof mod === "function") {
-        return mod;
-    }
-    // handle ES Module export transpiled to JS
-    // https://github.com/probot/probot/issues/1447
-    if (mod.__esModule && typeof mod.default === "function") {
-        return mod.default;
-    }
-    throw new Error(`[probot] now app function found at ${appFnPath}`);
+    const mod = await Promise.resolve().then(() => __importStar(require(appFnPath)));
+    // Note: This needs "esModuleInterop" to be set to "true" in "tsconfig.json"
+    return mod.default;
 };
 exports.resolveAppFunction = resolveAppFunction;
 //# sourceMappingURL=resolve-app-function.js.map
@@ -100593,7 +100605,6 @@ class Probot {
             privateKey: options.privateKey,
             host: options.host,
             port: options.port,
-            webhookProxy: options.webhookProxy,
         };
         this.auth = auth_1.auth.bind(null, this.state);
         this.webhooks = get_webhooks_1.getWebhooks(this.state);
@@ -100719,12 +100730,12 @@ async function run(appFnOrArgv, additionalOptions) {
             await server.load(default_1.defaultApp);
             if (Array.isArray(pkg.apps)) {
                 for (const appPath of pkg.apps) {
-                    const appFn = resolve_app_function_1.resolveAppFunction(appPath);
+                    const appFn = await resolve_app_function_1.resolveAppFunction(appPath);
                     server.load(appFn);
                 }
             }
             const [appPath] = args;
-            const appFn = resolve_app_function_1.resolveAppFunction(appPath);
+            const appFn = await resolve_app_function_1.resolveAppFunction(appPath);
             server.load(appFn);
         };
         server = new server_1.Server(serverOptions);
@@ -100891,7 +100902,7 @@ Server.version = version_1.VERSION;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.VERSION = void 0;
 // The version is set automatically before publish to npm
-exports.VERSION = "11.0.1";
+exports.VERSION = "11.0.4";
 //# sourceMappingURL=version.js.map
 
 /***/ }),
