@@ -402,6 +402,7 @@ const DEFAULT_CONFIG = Object.freeze({
   'sort-direction': SORT_DIRECTIONS.descending,
   prerelease: false,
   'filter-by-commitish': false,
+  'category-template': `## $TITLE`,
 })
 
 module.exports.DEFAULT_CONFIG = DEFAULT_CONFIG
@@ -699,7 +700,10 @@ const generateChangeLog = (mergedPullRequests, config) => {
 
   categorizedPullRequests.map((category, index) => {
     if (category.pullRequests.length) {
-      changeLog.push(`## ${category.title}\n\n`)
+      changeLog.push(
+        template(config['category-template'], { $TITLE: category.title })
+      )
+      changeLog.push('\n\n')
 
       changeLog.push(pullRequestToString(category.pullRequests))
 
@@ -951,6 +955,10 @@ const schema = (context) => {
             .default('patch'),
         })
         .default(DEFAULT_CONFIG['version-resolver']),
+
+      'category-template': Joi.string()
+        .allow('')
+        .default(DEFAULT_CONFIG['category-template']),
 
       template: Joi.string().required(),
 
