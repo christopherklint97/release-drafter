@@ -76,8 +76,14 @@ const log = __nccwpck_require__(13817)
 const core = __nccwpck_require__(42186)
 const { runnerIsActions } = __nccwpck_require__(50918)
 
-module.exports = (app) => {
+module.exports = (app, { getRouter }) => {
   const event = runnerIsActions() ? '*' : 'push'
+
+  if (!runnerIsActions() && typeof getRouter === 'function') {
+    getRouter().get('/healthz', (req, res) => {
+      res.status(200).json({ status: 'pass' })
+    })
+  }
 
   app.on(event, async (context) => {
     const { shouldDraft, configName, version, tag, name } = getInput()
@@ -150,7 +156,9 @@ module.exports = (app) => {
       })
     }
 
-    setActionOutput(createOrUpdateReleaseResponse, releaseInfo)
+    if (runnerIsActions()) {
+      setActionOutput(createOrUpdateReleaseResponse, releaseInfo)
+    }
   })
 }
 
