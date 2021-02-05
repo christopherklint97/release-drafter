@@ -100058,7 +100058,7 @@ function getErrorHandler(log) {
                 continue;
             }
             if (errMessage.includes("pem") || errMessage.includes("json web token")) {
-                log.error(error, "Your private key (usually a .pem file) is not correct. Go to https://github.com/settings/apps/YOUR_APP and generate a new PEM file. If you're deploying to Now, visit https://probot.github.io/docs/deployment/#now.");
+                log.error(error, "Your private key (a .pem file or PRIVATE_KEY environment variable) or APP_ID is incorrect. Go to https://github.com/settings/apps/YOUR_APP, verify that APP_ID is set correctly, and generate a new PEM file if necessary.");
                 continue;
             }
             log
@@ -100925,7 +100925,7 @@ Server.version = version_1.VERSION;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.VERSION = void 0;
 // The version is set automatically before publish to npm
-exports.VERSION = "11.0.4";
+exports.VERSION = "11.0.6";
 //# sourceMappingURL=version.js.map
 
 /***/ }),
