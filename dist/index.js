@@ -410,6 +410,7 @@ const DEFAULT_CONFIG = Object.freeze({
   'sort-direction': SORT_DIRECTIONS.descending,
   prerelease: false,
   'filter-by-commitish': false,
+  commitish: '',
   'category-template': `## $TITLE`,
 })
 
@@ -799,10 +800,13 @@ module.exports.generateReleaseInfo = ({
       : ''
   }
 
+  let commitish = config['commitish'] || ''
+
   return {
     name,
     tag,
     body,
+    commitish,
     prerelease: isPreRelease,
     draft: shouldDraft,
   }
@@ -811,6 +815,7 @@ module.exports.generateReleaseInfo = ({
 module.exports.createRelease = ({ context, releaseInfo }) => {
   return context.octokit.repos.createRelease(
     context.repo({
+      target_commitish: releaseInfo.commitish,
       name: releaseInfo.name,
       tag_name: releaseInfo.tag,
       body: releaseInfo.body,
@@ -918,6 +923,8 @@ const schema = (context) => {
       'filter-by-commitish': Joi.boolean().default(
         DEFAULT_CONFIG['filter-by-commitish']
       ),
+
+      commitish: Joi.string().allow('').default(DEFAULT_CONFIG['commitish']),
 
       replacers: Joi.array()
         .items(
