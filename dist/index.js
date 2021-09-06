@@ -1319,7 +1319,7 @@ const splitSemVer = (input, versionKey = 'version') => {
 
   const version = input.inc
     ? semver.inc(input[versionKey], input.inc, true)
-    : semver.parse(input[versionKey])
+    : input[versionKey].version
 
   return {
     ...input,
@@ -1327,6 +1327,7 @@ const splitSemVer = (input, versionKey = 'version') => {
     $MAJOR: semver.major(version),
     $MINOR: semver.minor(version),
     $PATCH: semver.patch(version),
+    $COMPLETE: version,
   }
 }
 
@@ -1393,14 +1394,24 @@ const getTemplatableVersion = (input) => {
   return templatableVersion
 }
 
+const toSemver = (version) => {
+  const result = semver.parse(version)
+  if (result) {
+    return result
+  }
+
+  // doesn't handle prerelease
+  return semver.coerce(version)
+}
+
 const coerceVersion = (input) => {
   if (!input) {
     return null
   }
 
   return typeof input === 'object'
-    ? semver.coerce(input.tag_name) || semver.coerce(input.name)
-    : semver.coerce(input)
+    ? toSemver(input.tag_name) || toSemver(input.name)
+    : toSemver(input)
 }
 
 module.exports.getVersionInfo = (
