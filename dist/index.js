@@ -283,6 +283,8 @@ module.exports.findCommitsWithAssociatedPullRequestsQuery = /* GraphQL */ `
     $withPullRequestURL: Boolean!
     $since: GitTimestamp
     $after: String
+    $withBaseRefName: Boolean!
+    $withHeadRefName: Boolean!
   ) {
     repository(name: $name, owner: $owner) {
       object(expression: $ref) {
@@ -322,6 +324,8 @@ module.exports.findCommitsWithAssociatedPullRequestsQuery = /* GraphQL */ `
                       name
                     }
                   }
+                  baseRefName @include(if: $withBaseRefName)
+                  headRefName @include(if: $withHeadRefName)
                 }
               }
             }
@@ -345,6 +349,8 @@ module.exports.findCommitsWithAssociatedPullRequests = async ({
     ref,
     withPullRequestBody: config['change-template'].includes('$BODY'),
     withPullRequestURL: config['change-template'].includes('$URL'),
+    withBaseRefName: config['change-template'].includes('$BASE_REF_NAME'),
+    withHeadRefName: config['change-template'].includes('$HEAD_REF_NAME'),
   }
   const dataPath = ['repository', 'object', 'history']
   const repoNameWithOwner = `${owner}/${repo}`
@@ -749,6 +755,8 @@ const generateChangeLog = (mergedPullRequests, config) => {
           $AUTHOR: pullRequest.author ? pullRequest.author.login : 'ghost',
           $BODY: pullRequest.body,
           $URL: pullRequest.url,
+          $BASE_REF_NAME: pullRequest.baseRefName,
+          $HEAD_REF_NAME: pullRequest.headRefName,
         })
       )
       .join('\n')
