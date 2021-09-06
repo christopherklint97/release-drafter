@@ -478,6 +478,8 @@ const DEFAULT_CONFIG = Object.freeze({
   categories: [],
   'exclude-labels': [],
   'include-labels': [],
+  'exclude-contributors': [],
+  'no-contributors-template': 'No contributors',
   replacers: [],
   autolabeler: [],
   'sort-by': SORT_BY.mergedAt,
@@ -627,19 +629,26 @@ module.exports.findReleases = async ({ ref, context, config }) => {
   return { draftRelease, lastRelease }
 }
 
-const contributorsSentence = ({ commits, pullRequests }) => {
+const contributorsSentence = ({ commits, pullRequests, config }) => {
+  const { 'exclude-contributors': excludeContributors } = config
+
   const contributors = new Set()
 
   commits.forEach((commit) => {
     if (commit.author.user) {
-      contributors.add(`@${commit.author.user.login}`)
+      if (!excludeContributors.includes(commit.author.user.login)) {
+        contributors.add(`@${commit.author.user.login}`)
+      }
     } else {
       contributors.add(commit.author.name)
     }
   })
 
   pullRequests.forEach((pullRequest) => {
-    if (pullRequest.author) {
+    if (
+      pullRequest.author &&
+      !excludeContributors.includes(pullRequest.author.login)
+    ) {
       contributors.add(`@${pullRequest.author.login}`)
     }
   })
@@ -651,8 +660,10 @@ const contributorsSentence = ({ commits, pullRequests }) => {
       ' and ' +
       sortedContributors.slice(-1)
     )
-  } else {
+  } else if (sortedContributors.length === 1) {
     return sortedContributors[0]
+  } else {
+    return config['no-contributors-template']
   }
 }
 
@@ -826,7 +837,7 @@ module.exports.generateReleaseInfo = ({
   name = undefined,
   isPreRelease,
   shouldDraft,
-  commitish = undefined
+  commitish = undefined,
 }) => {
   let body = config.template
 
@@ -838,6 +849,7 @@ module.exports.generateReleaseInfo = ({
       $CONTRIBUTORS: contributorsSentence({
         commits,
         pullRequests: mergedPullRequests,
+        config,
       }),
     },
     config.replacers
@@ -977,6 +989,14 @@ const schema = (context) => {
       'include-labels': Joi.array()
         .items(Joi.string())
         .default(DEFAULT_CONFIG['include-labels']),
+
+      'exclude-contributors': Joi.array()
+        .items(Joi.string())
+        .default(DEFAULT_CONFIG['exclude-contributors']),
+
+      'no-contributors-template': Joi.string().default(
+        DEFAULT_CONFIG['no-contributors-template']
+      ),
 
       'sort-by': Joi.string()
         .valid(SORT_BY.mergedAt, SORT_BY.title)
