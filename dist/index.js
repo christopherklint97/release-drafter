@@ -405,7 +405,6 @@ module.exports.findCommitsWithAssociatedPullRequests = async ({
 
 const core = __nccwpck_require__(42186)
 const { validateSchema } = __nccwpck_require__(5171)
-const { DEFAULT_CONFIG } = __nccwpck_require__(25586)
 const log = __nccwpck_require__(13817)
 const { runnerIsActions } = __nccwpck_require__(50918)
 const Table = __nccwpck_require__(2101)
@@ -416,8 +415,16 @@ module.exports.getConfig = async function getConfig({ context, configName }) {
   try {
     const repoConfig = await context.config(
       configName || DEFAULT_CONFIG_NAME,
-      DEFAULT_CONFIG
+      null
     )
+    if (repoConfig == null) {
+      // noinspection ExceptionCaughtLocallyJS
+      throw new Error(
+        'Configuration file .github/' +
+          (configName || DEFAULT_CONFIG_NAME) +
+          ' is not found. The configuration file must reside in your default branch.'
+      )
+    }
 
     const config = validateSchema(context, repoConfig)
 
@@ -429,7 +436,9 @@ module.exports.getConfig = async function getConfig({ context, configName }) {
       log({
         context,
         message:
-          'Config validation errors, please fix the following issues in release-drafter.yml:\n' +
+          'Config validation errors, please fix the following issues in ' +
+          (configName || DEFAULT_CONFIG_NAME) +
+          ':\n' +
           joiValidationErrorsAsTable(error),
       })
     }
