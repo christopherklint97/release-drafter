@@ -132800,7 +132800,7 @@ module.exports = require("zlib");
 /***/ }),
 
 /***/ 24566:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 const { getConfig } = __nccwpck_require__(35378)
 const { isTriggerableReference } = __nccwpck_require__(49)
@@ -132817,7 +132817,7 @@ const core = __nccwpck_require__(42186)
 const { runnerIsActions } = __nccwpck_require__(98281)
 const ignore = __nccwpck_require__(91230)
 
-exports.releaseDrafter = (app, { getRouter }) => {
+module.exports = (app, { getRouter }) => {
   if (!runnerIsActions() && typeof getRouter === 'function') {
     getRouter().get('/healthz', (request, response) => {
       response.status(200).json({ status: 'pass' })
@@ -134481,7 +134481,7 @@ var __webpack_exports__ = {};
 (() => {
 const core = __nccwpck_require__(42186)
 const { run } = __nccwpck_require__(93159)
-const { releaseDrafter } = __nccwpck_require__(24566)
+const releaseDrafter = __nccwpck_require__(24566)
 
 run(releaseDrafter).catch((error) => {
   core.setFailed(`💥 Release drafter failed with error: ${error.message}`)
