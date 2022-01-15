@@ -133767,6 +133767,7 @@ const Joi = __nccwpck_require__(44010)
 const { SORT_BY, SORT_DIRECTIONS } = __nccwpck_require__(11940)
 const { DEFAULT_CONFIG } = __nccwpck_require__(85869)
 const { validateReplacers, validateAutolabeler } = __nccwpck_require__(47282)
+const merge = __nccwpck_require__(56323)
 
 const schema = (context) => {
   const defaultBranch = _.get(
@@ -133906,7 +133907,8 @@ const schema = (context) => {
 }
 
 const validateSchema = (context, repoConfig) => {
-  const { error, value: config } = schema(context).validate(repoConfig, {
+  const mergedRepoConfig = merge.all([DEFAULT_CONFIG, repoConfig])
+  const { error, value: config } = schema(context).validate(mergedRepoConfig, {
     abortEarly: false,
     allowUnknown: true,
   })
