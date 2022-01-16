@@ -132982,6 +132982,7 @@ module.exports = (app, { getRouter }) => {
     )
 
     const releaseInfo = generateReleaseInfo({
+      context,
       commits,
       config,
       lastRelease,
@@ -133655,6 +133656,7 @@ const resolveVersionKeyIncrement = (mergedPullRequests, config) => {
 }
 
 const generateReleaseInfo = ({
+  context,
   commits,
   config,
   lastRelease,
@@ -133666,6 +133668,8 @@ const generateReleaseInfo = ({
   shouldDraft,
   commitish,
 }) => {
+  const { owner, repo } = context.repo()
+
   let body = config.template
 
   body = template(
@@ -133678,6 +133682,8 @@ const generateReleaseInfo = ({
         pullRequests: mergedPullRequests,
         config,
       }),
+      $OWNER: owner,
+      $REPOSITORY: repo,
     },
     config.replacers
   )
