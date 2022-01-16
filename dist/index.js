@@ -133128,6 +133128,7 @@ const findCommitsWithAssociatedPullRequestsQuery = /* GraphQL */ `
                       name
                     }
                   }
+                  merged
                   baseRefName @include(if: $withBaseRefName)
                   headRefName @include(if: $withHeadRefName)
                 }
@@ -133192,7 +133193,9 @@ const findCommitsWithAssociatedPullRequests = async ({
   const pullRequests = _.uniqBy(
     commits.flatMap((commit) => commit.associatedPullRequests.nodes),
     'number'
-  ).filter((pr) => pr.baseRepository.nameWithOwner === repoNameWithOwner)
+  ).filter(
+    (pr) => pr.baseRepository.nameWithOwner === repoNameWithOwner && pr.merged
+  )
 
   return { commits, pullRequests }
 }
