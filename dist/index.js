@@ -133525,6 +133525,10 @@ const categorizePullRequests = (pullRequests, config) => {
     return { ...category, pullRequests: [] }
   })
 
+  const uncategorizedCategoryIndex = categories.findIndex(
+    (category) => category.labels.length === 0
+  )
+
   const filterUncategorizedPullRequests = (pullRequest) => {
     const labels = pullRequest.labels.nodes
 
@@ -133532,7 +133536,13 @@ const categorizePullRequests = (pullRequests, config) => {
       labels.length === 0 ||
       !labels.some((label) => allCategoryLabels.has(label.name))
     ) {
-      uncategorizedPullRequests.push(pullRequest)
+      if (uncategorizedCategoryIndex === -1) {
+        uncategorizedPullRequests.push(pullRequest)
+      } else {
+        categorizedPullRequests[uncategorizedCategoryIndex].pullRequests.push(
+          pullRequest
+        )
+      }
       return false
     }
     return true
@@ -133769,7 +133779,11 @@ const _ = __nccwpck_require__(90250)
 const Joi = __nccwpck_require__(44010)
 const { SORT_BY, SORT_DIRECTIONS } = __nccwpck_require__(11940)
 const { DEFAULT_CONFIG } = __nccwpck_require__(85869)
-const { validateReplacers, validateAutolabeler } = __nccwpck_require__(47282)
+const {
+  validateReplacers,
+  validateAutolabeler,
+  validateCategories,
+} = __nccwpck_require__(47282)
 const merge = __nccwpck_require__(56323)
 
 const schema = (context) => {
@@ -133917,6 +133931,8 @@ const validateSchema = (context, repoConfig) => {
   })
 
   if (error) throw error
+
+  validateCategories({ categories: config.categories })
 
   try {
     config.replacers = validateReplacers({
@@ -134079,9 +134095,20 @@ function validateAutolabeler({ context, autolabeler }) {
     .filter(Boolean)
 }
 
+function validateCategories({ categories }) {
+  if (
+    categories.filter((category) => category.labels.length === 0).length > 1
+  ) {
+    throw new Error(
+      'Multiple categories detected with no labels.\nOnly one category with no labels is supported for uncategorized pull requests.'
+    )
+  }
+}
+
 exports.template = template
 exports.validateReplacers = validateReplacers
 exports.validateAutolabeler = validateAutolabeler
+exports.validateCategories = validateCategories
 
 
 /***/ }),
