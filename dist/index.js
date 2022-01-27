@@ -64428,6 +64428,23 @@ internals.functions = {
         return condition ? then : otherwise;
     },
 
+    length(item) {
+
+        if (typeof item === 'string') {
+            return item.length;
+        }
+
+        if (!item || typeof item !== 'object') {
+            return null;
+        }
+
+        if (Array.isArray(item)) {
+            return item.length;
+        }
+
+        return Object.keys(item).length;
+    },
+
     msg(code) {
 
         const [value, state, prefs, local, options] = this;
@@ -131271,7 +131288,7 @@ module.exports = JSON.parse('{"assert":true,"node:assert":[">= 14.18 && < 15",">
 /***/ ((module) => {
 
 "use strict";
-module.exports = JSON.parse('{"name":"joi","description":"Object schema validation","version":"17.5.0","repository":"git://github.com/sideway/joi","main":"lib/index.js","types":"lib/index.d.ts","browser":"dist/joi-browser.min.js","files":["lib/**/*","dist/*"],"keywords":["schema","validation"],"dependencies":{"@hapi/hoek":"^9.0.0","@hapi/topo":"^5.0.0","@sideway/address":"^4.1.3","@sideway/formula":"^3.0.0","@sideway/pinpoint":"^2.0.0"},"devDependencies":{"@hapi/bourne":"2.x.x","@hapi/code":"8.x.x","@hapi/joi-legacy-test":"npm:@hapi/joi@15.x.x","@hapi/lab":"24.x.x","typescript":"4.3.x"},"scripts":{"prepublishOnly":"cd browser && npm install && npm run build","test":"lab -t 100 -a @hapi/code -L -Y","test-cov-html":"lab -r html -o coverage.html -a @hapi/code"},"license":"BSD-3-Clause"}');
+module.exports = JSON.parse('{"name":"joi","description":"Object schema validation","version":"17.6.0","repository":"git://github.com/sideway/joi","main":"lib/index.js","types":"lib/index.d.ts","browser":"dist/joi-browser.min.js","files":["lib/**/*","dist/*"],"keywords":["schema","validation"],"dependencies":{"@hapi/hoek":"^9.0.0","@hapi/topo":"^5.0.0","@sideway/address":"^4.1.3","@sideway/formula":"^3.0.0","@sideway/pinpoint":"^2.0.0"},"devDependencies":{"@hapi/bourne":"2.x.x","@hapi/code":"8.x.x","@hapi/joi-legacy-test":"npm:@hapi/joi@15.x.x","@hapi/lab":"24.x.x","typescript":"4.3.x"},"scripts":{"prepublishOnly":"cd browser && npm install && npm run build","test":"lab -t 100 -a @hapi/code -L -Y","test-cov-html":"lab -r html -o coverage.html -a @hapi/code"},"license":"BSD-3-Clause"}');
 
 /***/ }),
 
