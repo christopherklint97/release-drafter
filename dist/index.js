@@ -129344,12 +129344,16 @@ const generateReleaseInfo = ({
 
   if (tag === undefined) {
     tag = versionInfo ? template(config['tag-template'] || '', versionInfo) : ''
+  } else if (versionInfo) {
+    tag = template(tag, versionInfo)
   }
 
   if (name === undefined) {
     name = versionInfo
       ? template(config['name-template'] || '', versionInfo)
       : ''
+  } else if (versionInfo) {
+    name = template(name, versionInfo)
   }
 
   if (commitish === undefined) {
