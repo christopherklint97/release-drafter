@@ -129311,7 +129311,8 @@ const generateReleaseInfo = ({
 }) => {
   const { owner, repo } = context.repo()
 
-  let body = config.template
+  let body =
+    (config['header'] || '') + config.template + (config['footer'] || '')
 
   body = template(
     body,
@@ -129575,7 +129576,11 @@ const schema = (context) => {
         .allow('')
         .default(DEFAULT_CONFIG['category-template']),
 
+      header: Joi.string(),
+
       template: Joi.string().required(),
+
+      footer: Joi.string(),
 
       _extends: Joi.string(),
     })
