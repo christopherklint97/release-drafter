@@ -128604,15 +128604,19 @@ module.exports = (app, { getRouter }) => {
       return
     }
 
+    const targetCommitish = commitish || config['commitish'] || ref
+    const filterByCommitish = config['filter-by-commitish']
+
     const { draftRelease, lastRelease } = await findReleases({
-      ref,
       context,
-      config,
+      targetCommitish,
+      filterByCommitish,
     })
+
     const { commits, pullRequests: mergedPullRequests } =
       await findCommitsWithAssociatedPullRequests({
         context,
-        ref,
+        targetCommitish,
         lastRelease,
         config,
       })
@@ -128634,7 +128638,7 @@ module.exports = (app, { getRouter }) => {
       name,
       isPreRelease,
       shouldDraft,
-      commitish,
+      targetCommitish,
     })
 
     let createOrUpdateReleaseResponse
@@ -128725,7 +128729,7 @@ const findCommitsWithAssociatedPullRequestsQuery = /* GraphQL */ `
   query findCommitsWithAssociatedPullRequests(
     $name: String!
     $owner: String!
-    $ref: String!
+    $targetCommitish: String!
     $withPullRequestBody: Boolean!
     $withPullRequestURL: Boolean!
     $since: GitTimestamp
@@ -128734,7 +128738,7 @@ const findCommitsWithAssociatedPullRequestsQuery = /* GraphQL */ `
     $withHeadRefName: Boolean!
   ) {
     repository(name: $name, owner: $owner) {
-      object(expression: $ref) {
+      object(expression: $targetCommitish) {
         ... on Commit {
           history(first: 100, since: $since, after: $after) {
             totalCount
@@ -128786,7 +128790,7 @@ const findCommitsWithAssociatedPullRequestsQuery = /* GraphQL */ `
 
 const findCommitsWithAssociatedPullRequests = async ({
   context,
-  ref,
+  targetCommitish,
   lastRelease,
   config,
 }) => {
@@ -128794,7 +128798,7 @@ const findCommitsWithAssociatedPullRequests = async ({
   const variables = {
     name: repo,
     owner,
-    ref,
+    targetCommitish,
     withPullRequestBody: config['change-template'].includes('$BODY'),
     withPullRequestURL: config['change-template'].includes('$URL'),
     withBaseRefName: config['change-template'].includes('$BASE_REF_NAME'),
@@ -128807,7 +128811,7 @@ const findCommitsWithAssociatedPullRequests = async ({
   if (lastRelease) {
     log({
       context,
-      message: `Fetching all commits for reference ${ref} since ${lastRelease.created_at}`,
+      message: `Fetching parent commits of ${targetCommitish} since ${lastRelease.created_at}`,
     })
 
     data = await paginate(
@@ -128822,7 +128826,7 @@ const findCommitsWithAssociatedPullRequests = async ({
       (commit) => commit.committedDate != lastRelease.created_at
     )
   } else {
-    log({ context, message: `Fetching all commits for reference ${ref}` })
+    log({ context, message: `Fetching parent commits of ${targetCommitish}` })
 
     data = await paginate(
       context.octokit.graphql,
@@ -129056,7 +129060,11 @@ const sortReleases = (releases) => {
   }
 }
 
-const findReleases = async ({ ref, context, config }) => {
+const findReleases = async ({
+  context,
+  targetCommitish,
+  filterByCommitish,
+}) => {
   let releases = await context.octokit.paginate(
     context.octokit.repos.listReleases.endpoint.merge(
       context.repo({
@@ -129067,9 +129075,8 @@ const findReleases = async ({ ref, context, config }) => {
 
   log({ context, message: `Found ${releases.length} releases` })
 
-  const { 'filter-by-commitish': filterByCommitish } = config
   const filteredReleases = filterByCommitish
-    ? releases.filter((r) => ref.match(`/${r.target_commitish}$`))
+    ? releases.filter((r) => targetCommitish.match(`/${r.target_commitish}$`))
     : releases
   const sortedPublishedReleases = sortReleases(
     filteredReleases.filter((r) => !r.draft)
@@ -129308,7 +129315,7 @@ const generateReleaseInfo = ({
   name,
   isPreRelease,
   shouldDraft,
-  commitish,
+  targetCommitish,
 }) => {
   const { owner, repo } = context.repo()
 
@@ -129358,15 +129365,23 @@ const generateReleaseInfo = ({
     name = template(name, versionInfo)
   }
 
-  if (commitish === undefined) {
-    commitish = config['commitish'] || ''
+  // Tags are not supported as `target_commitish` by Github API.
+  // GITHUB_REF or the ref from webhook start with `refs/tags/`, so we handle
+  // those here. If it doesn't but is still a tag - it must have been set
+  // explicitly by the user, so it's fair to just let the API respond with an error.
+  if (targetCommitish.startsWith('refs/tags/')) {
+    log({
+      context,
+      message: `${targetCommitish} is not supported as release target, falling back to default branch`,
+    })
+    targetCommitish = ''
   }
 
   return {
     name,
     tag,
     body,
-    commitish,
+    targetCommitish,
     prerelease: isPreRelease,
     draft: shouldDraft,
   }
@@ -129375,7 +129390,7 @@ const generateReleaseInfo = ({
 const createRelease = ({ context, releaseInfo }) => {
   return context.octokit.repos.createRelease(
     context.repo({
-      target_commitish: releaseInfo.commitish,
+      target_commitish: releaseInfo.targetCommitish,
       name: releaseInfo.name,
       tag_name: releaseInfo.tag,
       body: releaseInfo.body,
@@ -129389,7 +129404,7 @@ const updateRelease = ({ context, draftRelease, releaseInfo }) => {
   const updateReleaseParameters = updateDraftReleaseParameters({
     name: releaseInfo.name || draftRelease.name,
     tag_name: releaseInfo.tag || draftRelease.tag_name,
-    target_commitish: releaseInfo.commitish,
+    target_commitish: releaseInfo.targetCommitish,
   })
 
   return context.octokit.repos.updateRelease(
