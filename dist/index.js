@@ -128725,6 +128725,33 @@ const _ = __nccwpck_require__(90250)
 const { log } = __nccwpck_require__(71911)
 const { paginate } = __nccwpck_require__(46418)
 
+const findCommitsWithPathChangesQuery = /* GraphQL */ `
+  query findCommitsWithPathChangesQuery(
+    $name: String!
+    $owner: String!
+    $targetCommitish: String!
+    $since: GitTimestamp
+    $after: String
+    $path: String
+  ) {
+    repository(name: $name, owner: $owner) {
+      object(expression: $targetCommitish) {
+        ... on Commit {
+          history(path: $path, since: $since, after: $after) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            nodes {
+              id
+            }
+          }
+        }
+      }
+    }
+  }
+`
+
 const findCommitsWithAssociatedPullRequestsQuery = /* GraphQL */ `
   query findCommitsWithAssociatedPullRequests(
     $name: String!
@@ -128804,10 +128831,40 @@ const findCommitsWithAssociatedPullRequests = async ({
     withBaseRefName: config['change-template'].includes('$BASE_REF_NAME'),
     withHeadRefName: config['change-template'].includes('$HEAD_REF_NAME'),
   }
+  const includePaths = config['include-paths']
   const dataPath = ['repository', 'object', 'history']
   const repoNameWithOwner = `${owner}/${repo}`
 
-  let data, commits
+  let data,
+    allCommits,
+    includedIds = {}
+
+  if (includePaths.length > 0) {
+    var anyChanges = false
+    for (const path of includePaths) {
+      const pathData = await paginate(
+        context.octokit.graphql,
+        findCommitsWithPathChangesQuery,
+        lastRelease
+          ? { ...variables, since: lastRelease.created_at, path }
+          : { ...variables, path },
+        dataPath
+      )
+      const commitsWithPathChanges = _.get(pathData, [...dataPath, 'nodes'])
+
+      includedIds[path] = includedIds[path] || new Set([])
+      for (const { id } of commitsWithPathChanges) {
+        anyChanges = true
+        includedIds[path].add(id)
+      }
+    }
+
+    if (!anyChanges) {
+      // Short circuit to avoid blowing GraphQL budget
+      return { commits: [], pullRequests: [] }
+    }
+  }
+
   if (lastRelease) {
     log({
       context,
@@ -128822,7 +128879,7 @@ const findCommitsWithAssociatedPullRequests = async ({
     )
     // GraphQL call is inclusive of commits from the specified dates.  This means the final
     // commit from the last tag is included, so we remove this here.
-    commits = _.get(data, [...dataPath, 'nodes']).filter(
+    allCommits = _.get(data, [...dataPath, 'nodes']).filter(
       (commit) => commit.committedDate != lastRelease.created_at
     )
   } else {
@@ -128834,8 +128891,15 @@ const findCommitsWithAssociatedPullRequests = async ({
       variables,
       dataPath
     )
-    commits = _.get(data, [...dataPath, 'nodes'])
+    allCommits = _.get(data, [...dataPath, 'nodes'])
   }
+
+  const commits =
+    includePaths.length > 0
+      ? allCommits.filter((commit) =>
+          includePaths.some((path) => includedIds[path].has(commit.id))
+        )
+      : allCommits
 
   const pullRequests = _.uniqBy(
     commits.flatMap((commit) => commit.associatedPullRequests.nodes),
@@ -128849,6 +128913,8 @@ const findCommitsWithAssociatedPullRequests = async ({
 
 exports.findCommitsWithAssociatedPullRequestsQuery =
   findCommitsWithAssociatedPullRequestsQuery
+
+exports.findCommitsWithPathChangesQuery = findCommitsWithPathChangesQuery
 
 exports.findCommitsWithAssociatedPullRequests =
   findCommitsWithAssociatedPullRequests
@@ -128944,6 +129010,7 @@ const DEFAULT_CONFIG = Object.freeze({
   categories: [],
   'exclude-labels': [],
   'include-labels': [],
+  'include-paths': [],
   'exclude-contributors': [],
   'no-contributors-template': 'No contributors',
   replacers: [],
@@ -129513,6 +129580,10 @@ const schema = (context) => {
       'include-labels': Joi.array()
         .items(Joi.string())
         .default(DEFAULT_CONFIG['include-labels']),
+
+      'include-paths': Joi.array()
+        .items(Joi.string())
+        .default(DEFAULT_CONFIG['include-paths']),
 
       'exclude-contributors': Joi.array()
         .items(Joi.string())
