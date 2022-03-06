@@ -128605,12 +128605,16 @@ module.exports = (app, { getRouter }) => {
     }
 
     const targetCommitish = commitish || config['commitish'] || ref
-    const filterByCommitish = config['filter-by-commitish']
+    const {
+      'filter-by-commitish': filterByCommitish,
+      'tag-prefix': tagPrefix,
+    } = config
 
     const { draftRelease, lastRelease } = await findReleases({
       context,
       targetCommitish,
       filterByCommitish,
+      tagPrefix,
     })
 
     const { commits, pullRequests: mergedPullRequests } =
@@ -128997,6 +129001,7 @@ const { SORT_BY, SORT_DIRECTIONS } = __nccwpck_require__(11940)
 const DEFAULT_CONFIG = Object.freeze({
   'name-template': '',
   'tag-template': '',
+  'tag-prefix': '',
   'change-template': `* $TITLE (#$NUMBER) @$AUTHOR`,
   'change-title-escapes': '',
   'no-changes-template': `* No changes`,
@@ -129134,6 +129139,7 @@ const findReleases = async ({
   context,
   targetCommitish,
   filterByCommitish,
+  tagPrefix,
 }) => {
   let releaseCount = 0
   let releases = await context.octokit.paginate(
@@ -129156,12 +129162,15 @@ const findReleases = async ({
   // `refs/heads/branch` and `branch` are the same thing in this context
   const headRefRegex = /^refs\/heads\//
   const targetCommitishName = targetCommitish.replace(headRefRegex, '')
-  const filteredReleases = filterByCommitish
+  const commitishFilteredReleases = filterByCommitish
     ? releases.filter(
         (r) =>
           targetCommitishName === r.target_commitish.replace(headRefRegex, '')
       )
     : releases
+  const filteredReleases = tagPrefix
+    ? commitishFilteredReleases.filter((r) => r.tag_name.startsWith(tagPrefix))
+    : commitishFilteredReleases
   const sortedPublishedReleases = sortReleases(
     filteredReleases.filter((r) => !r.draft)
   )
@@ -129428,7 +129437,8 @@ const generateReleaseInfo = ({
     // Use the first override parameter to identify
     // a version, from the most accurate to the least
     version || tag || name,
-    resolveVersionKeyIncrement(mergedPullRequests, config)
+    resolveVersionKeyIncrement(mergedPullRequests, config),
+    config['tag-prefix']
   )
 
   if (versionInfo) {
@@ -129574,6 +129584,10 @@ const schema = (context) => {
       'name-template': Joi.string()
         .allow('')
         .default(DEFAULT_CONFIG['name-template']),
+
+      'tag-prefix': Joi.string()
+        .allow('')
+        .default(DEFAULT_CONFIG['tag-prefix']),
 
       'tag-template': Joi.string()
         .allow('')
@@ -130077,24 +130091,30 @@ const toSemver = (version) => {
   return semver.coerce(version)
 }
 
-const coerceVersion = (input) => {
+const coerceVersion = (input, tagPrefix) => {
   if (!input) {
     return
   }
 
+  const stripTag = (input) =>
+    tagPrefix && input.startsWith(tagPrefix)
+      ? input.slice(tagPrefix.length)
+      : input
+
   return typeof input === 'object'
-    ? toSemver(input.tag_name) || toSemver(input.name)
-    : toSemver(input)
+    ? toSemver(stripTag(input.tag_name)) || toSemver(stripTag(input.name))
+    : toSemver(stripTag(input))
 }
 
 const getVersionInfo = (
   release,
   template,
   inputVersion,
-  versionKeyIncrement
+  versionKeyIncrement,
+  tagPrefix
 ) => {
-  const version = coerceVersion(release)
-  inputVersion = coerceVersion(inputVersion)
+  const version = coerceVersion(release, tagPrefix)
+  inputVersion = coerceVersion(inputVersion, tagPrefix)
 
   if (!version && !inputVersion) {
     return defaultVersionInfo
