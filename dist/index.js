@@ -129297,8 +129297,8 @@ const categorizePullRequests = (pullRequests, config) => {
     .filter(getFilterIncludedPullRequests(includeLabels))
     .filter((pullRequest) => filterUncategorizedPullRequests(pullRequest))
 
-  categorizedPullRequests.map((category) => {
-    filteredPullRequests.map((pullRequest) => {
+  for (const category of categorizedPullRequests) {
+    for (const pullRequest of filteredPullRequests) {
       // lets categorize some pull request based on labels
       // note that having the same label in multiple categories
       // then it is intended to "duplicate" the pull request into each category
@@ -129306,8 +129306,8 @@ const categorizePullRequests = (pullRequests, config) => {
       if (labels.some((label) => category.labels.includes(label.name))) {
         category.pullRequests.push(pullRequest)
       }
-    })
-  })
+    }
+  }
 
   return [uncategorizedPullRequests, categorizedPullRequests]
 }
@@ -129356,17 +129356,42 @@ const generateChangeLog = (mergedPullRequests, config) => {
     changeLog.push(pullRequestToString(uncategorizedPullRequests), '\n\n')
   }
 
-  categorizedPullRequests.map((category, index) => {
-    if (category.pullRequests.length > 0) {
-      changeLog.push(
-        template(config['category-template'], { $TITLE: category.title }),
-        '\n\n',
-        pullRequestToString(category.pullRequests)
-      )
-
-      if (index + 1 !== categorizedPullRequests.length) changeLog.push('\n\n')
+  for (const [index, category] of categorizedPullRequests.entries()) {
+    if (category.pullRequests.length === 0) {
+      continue
     }
-  })
+
+    // Add the category title to the changelog.
+    changeLog.push(
+      template(config['category-template'], { $TITLE: category.title }),
+      '\n\n'
+    )
+
+    // Define the pull requests into a single string.
+    const pullRequestString = pullRequestToString(category.pullRequests)
+
+    // Determine the collapse status.
+    const shouldCollapse =
+      category['collapse-after'] !== 0 &&
+      category.pullRequests.length > category['collapse-after']
+
+    // Add the pull requests to the changelog.
+    if (shouldCollapse) {
+      changeLog.push(
+        '<details>',
+        '\n',
+        `<summary>${category.pullRequests.length} changes</summary>`,
+        '\n\n',
+        pullRequestString,
+        '\n',
+        '</details>'
+      )
+    } else {
+      changeLog.push(pullRequestString)
+    }
+
+    if (index + 1 !== categorizedPullRequests.length) changeLog.push('\n\n')
+  }
 
   return changeLog.join('').trim()
 }
@@ -129661,6 +129686,7 @@ const schema = (context) => {
           Joi.object()
             .keys({
               title: Joi.string().required(),
+              'collapse-after': Joi.number().integer().min(0).default(0),
               label: Joi.string(),
               labels: Joi.array().items(Joi.string()).single().default([]),
             })
