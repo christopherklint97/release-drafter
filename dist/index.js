@@ -115921,7 +115921,7 @@ Server.version = version_1.VERSION;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.VERSION = void 0;
 // The version is set automatically before publish to npm
-exports.VERSION = "12.2.2";
+exports.VERSION = "12.2.3";
 //# sourceMappingURL=version.js.map
 
 /***/ }),
