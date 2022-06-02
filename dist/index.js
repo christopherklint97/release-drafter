@@ -115375,6 +115375,7 @@ function getRedisClient({ log, redisConfig }) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.getProbotOctokitWithDefaults = void 0;
 const get_octokit_throttle_options_1 = __nccwpck_require__(2286);
+const alias_log_1 = __nccwpck_require__(95326);
 /**
  * Returns an Octokit instance with default settings for authentication. If
  * a `githubToken` is passed explicitly, the Octokit instance will be
@@ -115401,6 +115402,9 @@ function getProbotOctokitWithDefaults(options) {
     });
     let defaultOptions = {
         auth: authOptions,
+        log: options.log.child
+            ? alias_log_1.aliasLog(options.log.child({ name: "octokit" }))
+            : options.log,
     };
     if (options.baseUrl) {
         defaultOptions.baseUrl = options.baseUrl;
@@ -115921,7 +115925,7 @@ Server.version = version_1.VERSION;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.VERSION = void 0;
 // The version is set automatically before publish to npm
-exports.VERSION = "12.2.3";
+exports.VERSION = "12.2.4";
 //# sourceMappingURL=version.js.map
 
 /***/ }),
