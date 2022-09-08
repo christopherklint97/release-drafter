@@ -141576,7 +141576,7 @@ const findCommitsWithAssociatedPullRequestsQuery = /* GraphQL */ `
                   }
                   mergedAt
                   isCrossRepository
-                  labels(first: 10) {
+                  labels(first: 100) {
                     nodes {
                       name
                     }
