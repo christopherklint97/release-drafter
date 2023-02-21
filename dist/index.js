@@ -142364,6 +142364,7 @@ module.exports = (app, { getRouter }) => {
     const targetCommitish = commitish || config['commitish'] || ref
     const {
       'filter-by-commitish': filterByCommitish,
+      'include-pre-releases': includePreReleases,
       'tag-prefix': tagPrefix,
     } = config
 
@@ -142381,6 +142382,7 @@ module.exports = (app, { getRouter }) => {
       context,
       targetCommitish,
       filterByCommitish,
+      includePreReleases,
       tagPrefix,
     })
 
@@ -142792,6 +142794,7 @@ const DEFAULT_CONFIG = Object.freeze({
   'sort-direction': SORT_DIRECTIONS.descending,
   prerelease: false,
   'filter-by-commitish': false,
+  'include-pre-releases': false,
   commitish: '',
   'category-template': `## $TITLE`,
   header: '',
@@ -142909,6 +142912,7 @@ const findReleases = async ({
   context,
   targetCommitish,
   filterByCommitish,
+  includePreReleases,
   tagPrefix,
 }) => {
   let releaseCount = 0
@@ -142941,12 +142945,13 @@ const findReleases = async ({
   const filteredReleases = tagPrefix
     ? commitishFilteredReleases.filter((r) => r.tag_name.startsWith(tagPrefix))
     : commitishFilteredReleases
-  const sortedPublishedReleases = sortReleases(
-    filteredReleases.filter((r) => !r.draft && !r.prerelease)
+  const sortedSelectedReleases = sortReleases(
+    filteredReleases.filter(
+      (r) => !r.draft && (!r.prerelease || includePreReleases)
+    )
   )
   const draftRelease = filteredReleases.find((r) => r.draft)
-  const lastRelease =
-    sortedPublishedReleases[sortedPublishedReleases.length - 1]
+  const lastRelease = sortedSelectedReleases[sortedSelectedReleases.length - 1]
 
   if (draftRelease) {
     log({ context, message: `Draft release: ${draftRelease.tag_name}` })
@@ -143208,7 +143213,6 @@ const generateReleaseInfo = ({
   const { owner, repo } = context.repo()
 
   let body = config['header'] + config.template + config['footer']
-
   body = template(
     body,
     {
@@ -143419,6 +143423,10 @@ const schema = (context) => {
 
       'filter-by-commitish': Joi.boolean().default(
         DEFAULT_CONFIG['filter-by-commitish']
+      ),
+
+      'include-pre-releases': Joi.boolean().default(
+        DEFAULT_CONFIG['include-pre-releases']
       ),
 
       commitish: Joi.string().allow('').default(DEFAULT_CONFIG['commitish']),
