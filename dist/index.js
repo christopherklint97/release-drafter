@@ -142893,11 +142893,17 @@ const { getVersionInfo } = __nccwpck_require__(49914)
 const { template } = __nccwpck_require__(47282)
 const { log } = __nccwpck_require__(71911)
 
-const sortReleases = (releases) => {
+const sortReleases = (releases, tagPrefix) => {
   // For semver, we find the greatest release number
   // For non-semver, we use the most recently merged
   try {
-    return releases.sort((r1, r2) => compareVersions(r1.tag_name, r2.tag_name))
+    const tagPrefixRexExp = new RegExp(`^${regexEscape(tagPrefix)}`)
+    return releases.sort((r1, r2) =>
+      compareVersions(
+        r1.tag_name.replace(tagPrefixRexExp, ''),
+        r2.tag_name.replace(tagPrefixRexExp, '')
+      )
+    )
   } catch {
     return releases.sort(
       (r1, r2) => new Date(r1.created_at) - new Date(r2.created_at)
@@ -142948,7 +142954,8 @@ const findReleases = async ({
   const sortedSelectedReleases = sortReleases(
     filteredReleases.filter(
       (r) => !r.draft && (!r.prerelease || includePreReleases)
-    )
+    ),
+    tagPrefix
   )
   const draftRelease = filteredReleases.find((r) => r.draft)
   const lastRelease = sortedSelectedReleases[sortedSelectedReleases.length - 1]
