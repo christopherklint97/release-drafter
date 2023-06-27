@@ -142470,7 +142470,10 @@ function getInput({ config } = {}) {
   }
 }
 
-function setActionOutput(releaseResponse, { body }) {
+function setActionOutput(
+  releaseResponse,
+  { body, resolvedVersion, majorVersion, minorVersion, patchVersion }
+) {
   const {
     data: {
       id: releaseId,
@@ -142486,6 +142489,10 @@ function setActionOutput(releaseResponse, { body }) {
   if (uploadUrl) core.setOutput('upload_url', uploadUrl)
   if (tagName) core.setOutput('tag_name', tagName)
   if (name) core.setOutput('name', name)
+  if (resolvedVersion) core.setOutput('resolved_version', resolvedVersion)
+  if (majorVersion) core.setOutput('major_version', majorVersion)
+  if (minorVersion) core.setOutput('minor_version', minorVersion)
+  if (patchVersion) core.setOutput('patch_version', patchVersion)
   core.setOutput('body', body)
 }
 
@@ -143276,6 +143283,11 @@ const generateReleaseInfo = ({
     targetCommitish = ''
   }
 
+  let resolvedVersion = versionInfo.$RESOLVED_VERSION.version
+  let majorVersion = versionInfo.$RESOLVED_VERSION.$MAJOR
+  let minorVersion = versionInfo.$RESOLVED_VERSION.$MINOR
+  let patchVersion = versionInfo.$RESOLVED_VERSION.$PATCH
+
   return {
     name,
     tag,
@@ -143283,6 +143295,10 @@ const generateReleaseInfo = ({
     targetCommitish,
     prerelease: isPreRelease,
     draft: shouldDraft,
+    resolvedVersion,
+    majorVersion,
+    minorVersion,
+    patchVersion,
   }
 }
 
