@@ -142349,7 +142349,7 @@ module.exports = (app, { getRouter }) => {
       configName,
     })
 
-    const { isPreRelease } = getInput({ config })
+    const { isPreRelease, latest } = getInput({ config })
 
     if (config === null || disableReleaser) return
 
@@ -142410,6 +142410,7 @@ module.exports = (app, { getRouter }) => {
       tag,
       name,
       isPreRelease,
+      latest,
       shouldDraft,
       targetCommitish,
     })
@@ -142465,8 +142466,18 @@ function getInput({ config } = {}) {
   // the input takes precedence, because it's more easy to change at runtime
   const preRelease = core.getInput('prerelease').toLowerCase()
 
+  const isPreRelease =
+    preRelease === 'true' || (!preRelease && config.prerelease)
+
+  const latestInput = core.getInput('latest').toLowerCase()
+
+  const latest = isPreRelease
+    ? 'false'
+    : (!latestInput && config.latest) || latestInput || undefined
+
   return {
-    isPreRelease: preRelease === 'true' || (!preRelease && config.prerelease),
+    isPreRelease,
+    latest,
   }
 }
 
@@ -142800,6 +142811,7 @@ const DEFAULT_CONFIG = Object.freeze({
   'sort-by': SORT_BY.mergedAt,
   'sort-direction': SORT_DIRECTIONS.descending,
   prerelease: false,
+  latest: 'true',
   'filter-by-commitish': false,
   'include-pre-releases': false,
   commitish: '',
@@ -143221,6 +143233,7 @@ const generateReleaseInfo = ({
   tag,
   name,
   isPreRelease,
+  latest,
   shouldDraft,
   targetCommitish,
 }) => {
@@ -143294,6 +143307,7 @@ const generateReleaseInfo = ({
     body,
     targetCommitish,
     prerelease: isPreRelease,
+    make_latest: latest,
     draft: shouldDraft,
     resolvedVersion,
     majorVersion,
@@ -143311,6 +143325,7 @@ const createRelease = ({ context, releaseInfo }) => {
       body: releaseInfo.body,
       draft: releaseInfo.draft,
       prerelease: releaseInfo.prerelease,
+      make_latest: releaseInfo.make_latest,
     })
   )
 }
@@ -143328,6 +143343,7 @@ const updateRelease = ({ context, draftRelease, releaseInfo }) => {
       body: releaseInfo.body,
       draft: releaseInfo.draft,
       prerelease: releaseInfo.prerelease,
+      make_latest: releaseInfo.make_latest,
       ...updateReleaseParameters,
     })
   )
@@ -143443,6 +143459,10 @@ const schema = (context) => {
         .default(DEFAULT_CONFIG['sort-direction']),
 
       prerelease: Joi.boolean().default(DEFAULT_CONFIG.prerelease),
+
+      latest: Joi.string()
+        .allow('', 'true', 'false', 'legacy')
+        .default(DEFAULT_CONFIG.latest),
 
       'filter-by-commitish': Joi.boolean().default(
         DEFAULT_CONFIG['filter-by-commitish']
