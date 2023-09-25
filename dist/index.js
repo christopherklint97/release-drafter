@@ -142235,11 +142235,11 @@ module.exports = (app, { getRouter }) => {
       'pull_request_target.edited',
     ],
     async (context) => {
-      const { disableAutolabeler } = getInput()
+      const { configName, disableAutolabeler } = getInput()
 
       const config = await getConfig({
         context,
-        configName: core.getInput('config-name'),
+        configName,
       })
 
       if (config === null || disableAutolabeler) return
@@ -142334,24 +142334,16 @@ module.exports = (app, { getRouter }) => {
   )
 
   const drafter = async (context) => {
-    const {
-      shouldDraft,
-      configName,
-      version,
-      tag,
-      name,
-      disableReleaser,
-      commitish,
-    } = getInput()
+    const input = getInput()
 
     const config = await getConfig({
       context,
-      configName,
+      configName: input.configName,
     })
 
-    const { isPreRelease, latest } = getInput({ config })
+    if (!config || input.disableReleaser) return
 
-    if (config === null || disableReleaser) return
+    updateConfigFromInput(config, input)
 
     // GitHub Actions merge payloads slightly differ, in that their ref points
     // to the PR branch instead of refs/heads/master
@@ -142361,28 +142353,26 @@ module.exports = (app, { getRouter }) => {
       return
     }
 
-    const targetCommitish = commitish || config['commitish'] || ref
+    const targetCommitish = config.commitish || ref
+
     const {
       'filter-by-commitish': filterByCommitish,
       'include-pre-releases': includePreReleases,
+      'prerelease-identifier': preReleaseIdentifier,
       'tag-prefix': tagPrefix,
+      latest,
+      prerelease,
     } = config
 
-    // override header and footer when passed as input
-    const header = core.getInput('header')
-    const footer = core.getInput('footer')
-    if (header) {
-      config['header'] = header
-    }
-    if (footer) {
-      config['footer'] = footer
-    }
+    const shouldIncludePreReleases = Boolean(
+      includePreReleases || preReleaseIdentifier
+    )
 
     const { draftRelease, lastRelease } = await findReleases({
       context,
       targetCommitish,
       filterByCommitish,
-      includePreReleases,
+      includePreReleases: shouldIncludePreReleases,
       tagPrefix,
     })
 
@@ -142400,6 +142390,8 @@ module.exports = (app, { getRouter }) => {
       config['sort-direction']
     )
 
+    const { shouldDraft, version, tag, name } = input
+
     const releaseInfo = generateReleaseInfo({
       context,
       commits,
@@ -142409,7 +142401,7 @@ module.exports = (app, { getRouter }) => {
       version,
       tag,
       name,
-      isPreRelease,
+      isPreRelease: prerelease,
       latest,
       shouldDraft,
       targetCommitish,
@@ -142445,40 +142437,56 @@ module.exports = (app, { getRouter }) => {
   }
 }
 
-function getInput({ config } = {}) {
-  // Returns all the inputs that doesn't need a merge with the config file
-  if (!config) {
-    return {
-      shouldDraft: core.getInput('publish').toLowerCase() !== 'true',
-      configName: core.getInput('config-name'),
-      version: core.getInput('version') || undefined,
-      tag: core.getInput('tag') || undefined,
-      name: core.getInput('name') || undefined,
-      disableReleaser:
-        core.getInput('disable-releaser').toLowerCase() === 'true',
-      disableAutolabeler:
-        core.getInput('disable-autolabeler').toLowerCase() === 'true',
-      commitish: core.getInput('commitish') || undefined,
-    }
-  }
-
-  // Merges the config file with the input
-  // the input takes precedence, because it's more easy to change at runtime
-  const preRelease = core.getInput('prerelease').toLowerCase()
-
-  const isPreRelease =
-    preRelease === 'true' || (!preRelease && config.prerelease)
-
-  const latestInput = core.getInput('latest').toLowerCase()
-
-  const latest = isPreRelease
-    ? 'false'
-    : (!latestInput && config.latest) || latestInput || undefined
-
+function getInput() {
   return {
-    isPreRelease,
-    latest,
+    configName: core.getInput('config-name'),
+    shouldDraft: core.getInput('publish').toLowerCase() !== 'true',
+    version: core.getInput('version') || undefined,
+    tag: core.getInput('tag') || undefined,
+    name: core.getInput('name') || undefined,
+    disableReleaser: core.getInput('disable-releaser').toLowerCase() === 'true',
+    disableAutolabeler:
+      core.getInput('disable-autolabeler').toLowerCase() === 'true',
+    commitish: core.getInput('commitish') || undefined,
+    header: core.getInput('header') || undefined,
+    footer: core.getInput('footer') || undefined,
+    prerelease:
+      core.getInput('prerelease') !== ''
+        ? core.getInput('prerelease').toLowerCase() === 'true'
+        : undefined,
+    preReleaseIdentifier: core.getInput('prerelease-identifier') || undefined,
+    latest: core.getInput('latest')?.toLowerCase() || undefined,
   }
+}
+
+/**
+ * Merges the config file with the input
+ * the input takes precedence, because it's more easy to change at runtime
+ */
+function updateConfigFromInput(config, input) {
+  if (input.commitish) {
+    config.commitish = input.commitish
+  }
+
+  if (input.header) {
+    config.header = input.header
+  }
+
+  if (input.footer) {
+    config.footer = input.footer
+  }
+
+  if (input.prerelease !== undefined) {
+    config.prerelease = input.prerelease
+  }
+
+  if (input.preReleaseIdentifier) {
+    config['prerelease-identifier'] = input.preReleaseIdentifier
+  }
+
+  config.latest = config.prerelease
+    ? 'false'
+    : input.latest || config.latest || undefined
 }
 
 function setActionOutput(
@@ -142793,7 +142801,7 @@ const DEFAULT_CONFIG = Object.freeze({
   'change-template': `* $TITLE (#$NUMBER) @$AUTHOR`,
   'change-title-escapes': '',
   'no-changes-template': `* No changes`,
-  'version-template': `$MAJOR.$MINOR.$PATCH`,
+  'version-template': `$MAJOR.$MINOR.$PATCH$PRERELEASE`,
   'version-resolver': {
     major: { labels: [] },
     minor: { labels: [] },
@@ -142811,9 +142819,10 @@ const DEFAULT_CONFIG = Object.freeze({
   'sort-by': SORT_BY.mergedAt,
   'sort-direction': SORT_DIRECTIONS.descending,
   prerelease: false,
+  'prerelease-identifier': '',
+  'include-pre-releases': false,
   latest: 'true',
   'filter-by-commitish': false,
-  'include-pre-releases': false,
   commitish: '',
   'category-template': `## $TITLE`,
   header: '',
@@ -142907,6 +142916,7 @@ exports.paginate = paginate
 
 const compareVersions = __nccwpck_require__(89296)
 const regexEscape = __nccwpck_require__(98691)
+const core = __nccwpck_require__(42186)
 
 const { getVersionInfo } = __nccwpck_require__(49914)
 const { template } = __nccwpck_require__(47282)
@@ -142915,19 +142925,17 @@ const { log } = __nccwpck_require__(71911)
 const sortReleases = (releases, tagPrefix) => {
   // For semver, we find the greatest release number
   // For non-semver, we use the most recently merged
-  try {
-    const tagPrefixRexExp = new RegExp(`^${regexEscape(tagPrefix)}`)
-    return releases.sort((r1, r2) =>
-      compareVersions(
+  const tagPrefixRexExp = new RegExp(`^${regexEscape(tagPrefix)}`)
+  return releases.sort((r1, r2) => {
+    try {
+      return compareVersions(
         r1.tag_name.replace(tagPrefixRexExp, ''),
         r2.tag_name.replace(tagPrefixRexExp, '')
       )
-    )
-  } catch {
-    return releases.sort(
-      (r1, r2) => new Date(r1.created_at) - new Date(r2.created_at)
-    )
-  }
+    } catch {
+      return new Date(r1.created_at) - new Date(r2.created_at)
+    }
+  })
 }
 
 // GitHub API currently returns a 500 HTTP response if you attempt to fetch over 1000 releases.
@@ -142986,7 +142994,12 @@ const findReleases = async ({
   }
 
   if (lastRelease) {
-    log({ context, message: `Last release: ${lastRelease.tag_name}` })
+    log({
+      context,
+      message: `Last release${
+        includePreReleases ? ' (including prerelease)' : ''
+      }: ${lastRelease.tag_name}`,
+    })
   } else {
     log({ context, message: `No last release found` })
   }
@@ -143197,12 +143210,17 @@ const generateChangeLog = (mergedPullRequests, config) => {
   return changeLog.join('').trim()
 }
 
-const resolveVersionKeyIncrement = (mergedPullRequests, config) => {
+const resolveVersionKeyIncrement = (
+  mergedPullRequests,
+  config,
+  isPreRelease
+) => {
   const priorityMap = {
     patch: 1,
     minor: 2,
     major: 3,
   }
+
   const labelToKeyMap = Object.fromEntries(
     Object.keys(priorityMap)
       .flatMap((key) => [
@@ -143210,17 +143228,35 @@ const resolveVersionKeyIncrement = (mergedPullRequests, config) => {
       ])
       .flat()
   )
+
+  core.debug('labelToKeyMap: ' + JSON.stringify(labelToKeyMap))
+
   const keys = mergedPullRequests
     .filter(getFilterExcludedPullRequests(config['exclude-labels']))
     .filter(getFilterIncludedPullRequests(config['include-labels']))
     .flatMap((pr) => pr.labels.nodes.map((node) => labelToKeyMap[node.name]))
     .filter(Boolean)
+
+  core.debug('keys: ' + JSON.stringify(keys))
+
   const keyPriorities = keys.map((key) => priorityMap[key])
   const priority = Math.max(...keyPriorities)
   const versionKey = Object.keys(priorityMap).find(
     (key) => priorityMap[key] === priority
   )
-  return versionKey || config['version-resolver'].default
+
+  core.debug('versionKey: ' + versionKey)
+
+  const versionKeyIncrement = versionKey || config['version-resolver'].default
+
+  const shouldIncrementAsPrerelease =
+    isPreRelease && config['prerelease-identifier']
+
+  if (!shouldIncrementAsPrerelease) {
+    return versionKeyIncrement
+  }
+
+  return `pre${versionKeyIncrement}`
 }
 
 const generateReleaseInfo = ({
@@ -143256,15 +143292,26 @@ const generateReleaseInfo = ({
     config.replacers
   )
 
+  const versionKeyIncrement = resolveVersionKeyIncrement(
+    mergedPullRequests,
+    config,
+    isPreRelease
+  )
+
+  core.debug('versionKeyIncrement: ' + versionKeyIncrement)
+
   const versionInfo = getVersionInfo(
     lastRelease,
     config['version-template'],
     // Use the first override parameter to identify
     // a version, from the most accurate to the least
     version || tag || name,
-    resolveVersionKeyIncrement(mergedPullRequests, config),
-    config['tag-prefix']
+    versionKeyIncrement,
+    config['tag-prefix'],
+    config['prerelease-identifier']
   )
+
+  core.debug('versionInfo: ' + JSON.stringify(versionInfo, null, 2))
 
   if (versionInfo) {
     body = template(body, versionInfo)
@@ -143276,6 +143323,8 @@ const generateReleaseInfo = ({
     tag = template(tag, versionInfo)
   }
 
+  core.debug('tag: ' + tag)
+
   if (name === undefined) {
     name = versionInfo
       ? template(config['name-template'] || '', versionInfo)
@@ -143283,6 +143332,8 @@ const generateReleaseInfo = ({
   } else if (versionInfo) {
     name = template(name, versionInfo)
   }
+
+  core.debug('name: ' + name)
 
   // Tags are not supported as `target_commitish` by Github API.
   // GITHUB_REF or the ref from webhook start with `refs/tags/`, so we handle
@@ -143459,6 +143510,10 @@ const schema = (context) => {
         .default(DEFAULT_CONFIG['sort-direction']),
 
       prerelease: Joi.boolean().default(DEFAULT_CONFIG.prerelease),
+
+      'prerelease-identifier': Joi.string()
+        .allow('')
+        .default(DEFAULT_CONFIG['prerelease-identifier']),
 
       latest: Joi.string()
         .allow('', 'true', 'false', 'legacy')
@@ -143807,8 +143862,10 @@ const splitSemVersion = (input, versionKey = 'version') => {
   }
 
   const version = input.inc
-    ? semver.inc(input[versionKey], input.inc, true)
+    ? semver.inc(input[versionKey], input.inc, true, input.preReleaseIdentifier)
     : input[versionKey].version
+
+  const prereleaseVersion = semver.prerelease(version)?.join('.') || ''
 
   return {
     ...input,
@@ -143816,6 +143873,7 @@ const splitSemVersion = (input, versionKey = 'version') => {
     $MAJOR: semver.major(version),
     $MINOR: semver.minor(version),
     $PATCH: semver.patch(version),
+    $PRERELEASE: prereleaseVersion ? `-${prereleaseVersion}` : '',
     $COMPLETE: version,
   }
 }
@@ -143830,6 +143888,7 @@ const defaultVersionInfo = {
     $MAJOR: 1,
     $MINOR: 0,
     $PATCH: 0,
+    $PRERELEASE: '',
   },
   $NEXT_MINOR_VERSION: {
     version: '0.1.0',
@@ -143840,6 +143899,7 @@ const defaultVersionInfo = {
     $MAJOR: 0,
     $MINOR: 1,
     $PATCH: 0,
+    $PRERELEASE: '',
   },
   $NEXT_PATCH_VERSION: {
     version: '0.1.0',
@@ -143850,6 +143910,19 @@ const defaultVersionInfo = {
     $MAJOR: 0,
     $MINOR: 1,
     $PATCH: 0,
+    $PRERELEASE: '',
+  },
+  $NEXT_PRERELEASE_VERSION: {
+    version: '0.1.0-rc.0',
+    template: '$MAJOR.$MINOR.$PATCH$PRERELEASE',
+    inputVersion: null,
+    versionKeyIncrement: 'prerelease',
+    inc: 'prerelease',
+    preReleaseIdentifier: 'rc',
+    $MAJOR: 0,
+    $MINOR: 1,
+    $PATCH: 0,
+    $PRERELEASE: '-rc.0',
   },
   $INPUT_VERSION: null,
   $RESOLVED_VERSION: {
@@ -143861,6 +143934,7 @@ const defaultVersionInfo = {
     $MAJOR: 0,
     $MINOR: 1,
     $PATCH: 0,
+    $PRERELEASE: '',
   },
 }
 
@@ -143914,6 +143988,11 @@ const getTemplatableVersion = (input) => {
       inc: 'patch',
       template: '$PATCH',
     }),
+    $NEXT_PRERELEASE_VERSION: splitSemVersion({
+      ...input,
+      inc: 'prerelease',
+      template: '$PRERELEASE',
+    }),
     $INPUT_VERSION: splitSemVersion(input, 'inputVersion'),
     $RESOLVED_VERSION: splitSemVersion({
       ...input,
@@ -143957,13 +144036,29 @@ const getVersionInfo = (
   template,
   inputVersion,
   versionKeyIncrement,
-  tagPrefix
+  tagPrefix,
+  preReleaseIdentifier
 ) => {
   const version = coerceVersion(release, tagPrefix)
   inputVersion = coerceVersion(inputVersion, tagPrefix)
 
+  const isPreVersionKeyIncrement = versionKeyIncrement?.startsWith('pre')
+
   if (!version && !inputVersion) {
+    if (isPreVersionKeyIncrement) {
+      defaultVersionInfo['$RESOLVED_VERSION'] = {
+        ...defaultVersionInfo['$NEXT_PRERELEASE_VERSION'],
+      }
+    }
+
     return defaultVersionInfo
+  }
+
+  const shouldIncrementAsPrerelease =
+    isPreVersionKeyIncrement && version?.prerelease?.length
+
+  if (shouldIncrementAsPrerelease) {
+    versionKeyIncrement = 'prerelease'
   }
 
   return {
@@ -143972,6 +144067,7 @@ const getVersionInfo = (
       template,
       inputVersion,
       versionKeyIncrement,
+      preReleaseIdentifier,
     }),
   }
 }
