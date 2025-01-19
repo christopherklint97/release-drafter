@@ -193753,6 +193753,7 @@ const findCommitsWithAssociatedPullRequestsQuery = /* GraphQL */ `
     $after: String
     $withBaseRefName: Boolean!
     $withHeadRefName: Boolean!
+    $pullRequestLimit: Int!
   ) {
     repository(name: $name, owner: $owner) {
       object(expression: $targetCommitish) {
@@ -193773,7 +193774,7 @@ const findCommitsWithAssociatedPullRequestsQuery = /* GraphQL */ `
                   login
                 }
               }
-              associatedPullRequests(first: 5) {
+              associatedPullRequests(first: $pullRequestLimit) {
                 nodes {
                   title
                   number
@@ -193822,6 +193823,7 @@ const findCommitsWithAssociatedPullRequests = async ({
     withPullRequestURL: config['change-template'].includes('$URL'),
     withBaseRefName: config['change-template'].includes('$BASE_REF_NAME'),
     withHeadRefName: config['change-template'].includes('$HEAD_REF_NAME'),
+    pullRequestLimit: config['pull-request-limit'],
   }
   const includePaths = config['include-paths']
   const dataPath = ['repository', 'object', 'history']
@@ -194016,6 +194018,7 @@ const DEFAULT_CONFIG = Object.freeze({
   latest: 'true',
   'filter-by-commitish': false,
   commitish: '',
+  'pull-request-limit': 5,
   'category-template': `## $TITLE`,
   header: '',
   footer: '',
@@ -194737,6 +194740,11 @@ const schema = (context) => {
       ),
 
       commitish: Joi.string().allow('').default(DEFAULT_CONFIG['commitish']),
+
+      'pull-request-limit': Joi.number()
+        .positive()
+        .integer()
+        .default(DEFAULT_CONFIG['pull-request-limit']),
 
       replacers: Joi.array()
         .items(
