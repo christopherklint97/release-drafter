@@ -193646,6 +193646,7 @@ function getInput() {
         : undefined,
     preReleaseIdentifier: core.getInput('prerelease-identifier') || undefined,
     latest: core.getInput('latest')?.toLowerCase() || undefined,
+    commitsSince: core.getInput('initial-commits-since') || undefined,
   }
 }
 
@@ -193677,6 +193678,10 @@ function updateConfigFromInput(config, input) {
   config.latest = config.prerelease
     ? 'false'
     : input.latest || config.latest || undefined
+
+  if (input.commitsSince) {
+    config['initial-commits-since'] = input.commitsSince
+  }
 }
 
 function setActionOutput(
@@ -193714,6 +193719,8 @@ function setActionOutput(
 const _ = __nccwpck_require__(90250)
 const { log } = __nccwpck_require__(71911)
 const { paginate } = __nccwpck_require__(46418)
+const Joi = __nccwpck_require__(20918)
+const core = __nccwpck_require__(42186)
 
 const findCommitsWithPathChangesQuery = /* GraphQL */ `
   query findCommitsWithPathChangesQuery(
@@ -193833,15 +193840,32 @@ const findCommitsWithAssociatedPullRequests = async ({
     allCommits,
     includedIds = {}
 
+  const since = lastRelease
+    ? lastRelease.created_at
+    : config['initial-commits-since']
+  const validationResult = Joi.date().iso().validate(since)
+
+  core.debug(' since value: ' + since)
+  core.debug(
+    ' since value validation.value: ' +
+      validationResult.value +
+      ' error: ' +
+      validationResult.error
+  )
+
+  // The validation result contains either an error or the validated value
+  if (validationResult.error) {
+    core.setFailed(validationResult.error.message)
+    throw new Error(validationResult.error.message)
+  }
+
   if (includePaths.length > 0) {
     var anyChanges = false
     for (const path of includePaths) {
       const pathData = await paginate(
         context.octokit.graphql,
         findCommitsWithPathChangesQuery,
-        lastRelease
-          ? { ...variables, since: lastRelease.created_at, path }
-          : { ...variables, path },
+        { ...variables, since: since, path },
         dataPath
       )
       const commitsWithPathChanges = _.get(pathData, [...dataPath, 'nodes'])
@@ -193859,22 +193883,22 @@ const findCommitsWithAssociatedPullRequests = async ({
     }
   }
 
-  if (lastRelease) {
+  if (since) {
     log({
       context,
-      message: `Fetching parent commits of ${targetCommitish} since ${lastRelease.created_at}`,
+      message: `Fetching parent commits of ${targetCommitish} since ${since}`,
     })
 
     data = await paginate(
       context.octokit.graphql,
       findCommitsWithAssociatedPullRequestsQuery,
-      { ...variables, since: lastRelease.created_at },
+      { ...variables, since: since },
       dataPath
     )
     // GraphQL call is inclusive of commits from the specified dates.  This means the final
     // commit from the last tag is included, so we remove this here.
     allCommits = _.get(data, [...dataPath, 'nodes']).filter(
-      (commit) => commit.committedDate != lastRelease.created_at
+      (commit) => commit.committedDate != since
     )
   } else {
     log({ context, message: `Fetching parent commits of ${targetCommitish}` })
@@ -194734,6 +194758,8 @@ const schema = (context) => {
       'filter-by-commitish': Joi.boolean().default(
         DEFAULT_CONFIG['filter-by-commitish']
       ),
+
+      'initial-commits-since': Joi.date().iso().allow(''),
 
       'include-pre-releases': Joi.boolean().default(
         DEFAULT_CONFIG['include-pre-releases']
