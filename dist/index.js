@@ -193761,11 +193761,12 @@ const findCommitsWithAssociatedPullRequestsQuery = /* GraphQL */ `
     $withBaseRefName: Boolean!
     $withHeadRefName: Boolean!
     $pullRequestLimit: Int!
+    $historyLimit: Int!
   ) {
     repository(name: $name, owner: $owner) {
       object(expression: $targetCommitish) {
         ... on Commit {
-          history(first: 100, since: $since, after: $after) {
+          history(first: $historyLimit, since: $since, after: $after) {
             totalCount
             pageInfo {
               hasNextPage
@@ -193831,6 +193832,7 @@ const findCommitsWithAssociatedPullRequests = async ({
     withBaseRefName: config['change-template'].includes('$BASE_REF_NAME'),
     withHeadRefName: config['change-template'].includes('$HEAD_REF_NAME'),
     pullRequestLimit: config['pull-request-limit'],
+    historyLimit: config['history-limit'],
   }
   const includePaths = config['include-paths']
   const dataPath = ['repository', 'object', 'history']
@@ -194043,6 +194045,7 @@ const DEFAULT_CONFIG = Object.freeze({
   'filter-by-commitish': false,
   commitish: '',
   'pull-request-limit': 5,
+  'history-limit': 15,
   'category-template': `## $TITLE`,
   header: '',
   footer: '',
@@ -194771,6 +194774,11 @@ const schema = (context) => {
         .positive()
         .integer()
         .default(DEFAULT_CONFIG['pull-request-limit']),
+
+      'history-limit': Joi.number()
+        .positive()
+        .integer()
+        .default(DEFAULT_CONFIG['history-limit']),
 
       replacers: Joi.array()
         .items(
