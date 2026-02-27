@@ -189917,6 +189917,7 @@ module.exports = (app, { getRouter }) => {
       targetCommitish,
       filterByCommitish,
       includePreReleases: shouldIncludePreReleases,
+      isPreRelease: prerelease,
       tagPrefix,
     })
 
@@ -190522,6 +190523,7 @@ const findReleases = async ({
   targetCommitish,
   filterByCommitish,
   includePreReleases,
+  isPreRelease,
   tagPrefix,
 }) => {
   let releaseCount = 0
@@ -190560,9 +190562,10 @@ const findReleases = async ({
     ),
     tagPrefix
   )
-  const draftRelease = filteredReleases.find(
-    (r) => r.draft && (!r.prerelease || includePreReleases)
-  )
+  const draftRelease =
+    filteredReleases.find(
+      (r) => r.draft && r.prerelease === Boolean(isPreRelease)
+    ) || filteredReleases.find((r) => r.draft && !r.prerelease)
   const lastRelease = sortedSelectedReleases[sortedSelectedReleases.length - 1]
 
   if (draftRelease) {
