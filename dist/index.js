@@ -190201,13 +190201,29 @@ const findCommitsWithAssociatedPullRequests = async ({
     : config['initial-commits-since']
   const validationResult = Joi.date().iso().validate(since)
 
-  core.debug(' since value: ' + since)
-  core.debug(
-    ' since value validation.value: ' +
-      validationResult.value +
-      ' error: ' +
-      validationResult.error
-  )
+  log({
+    context,
+    message: `since value: ${since}`,
+    debug: true,
+  })
+  log({
+    context,
+    message: `since value validation.value: ${JSON.stringify(
+      validationResult,
+      null,
+      2
+    )}`,
+    debug: true,
+  })
+  log({
+    context,
+    message: `since value validation.error: ${JSON.stringify(
+      validationResult.error,
+      null,
+      2
+    )}`,
+    debug: true,
+  })
 
   // The validation result contains either an error or the validated value
   if (validationResult.error) {
@@ -190413,12 +190429,16 @@ exports.DEFAULT_CONFIG = DEFAULT_CONFIG
 /***/ 87707:
 /***/ ((__unused_webpack_module, exports) => {
 
-const log = ({ context, message, error }) => {
+const log = ({ context, message, error, debug }) => {
   const repo = context.payload.repository
   const prefix = repo ? `${repo.full_name}: ` : ''
   const logString = `${prefix}${message}`
   if (error) {
     context.log.warn(error, logString)
+  } else if (debug) {
+    typeof debug === 'object'
+      ? context.log.debug({ ...debug }, logString)
+      : context.log.debug({}, logString)
   } else {
     context.log.info(logString)
   }
@@ -190492,7 +190512,6 @@ exports.paginate = paginate
 
 const compareVersions = __nccwpck_require__(28595)
 const regexEscape = __nccwpck_require__(31199)
-const core = __nccwpck_require__(37484)
 
 const { getVersionInfo } = __nccwpck_require__(1608)
 const { template } = __nccwpck_require__(96575)
@@ -190806,7 +190825,8 @@ const generateChangeLog = (mergedPullRequests, config) => {
 const resolveVersionKeyIncrement = (
   mergedPullRequests,
   config,
-  isPreRelease
+  isPreRelease,
+  context
 ) => {
   const priorityMap = {
     patch: 1,
@@ -190822,7 +190842,11 @@ const resolveVersionKeyIncrement = (
       .flat()
   )
 
-  core.debug('labelToKeyMap: ' + JSON.stringify(labelToKeyMap))
+  log({
+    context,
+    message: `labelToKeyMap`,
+    debug: labelToKeyMap,
+  })
 
   const keys = mergedPullRequests
     .filter(getFilterExcludedPullRequests(config['exclude-labels']))
@@ -190830,7 +190854,11 @@ const resolveVersionKeyIncrement = (
     .flatMap((pr) => pr.labels.nodes.map((node) => labelToKeyMap[node.name]))
     .filter(Boolean)
 
-  core.debug('keys: ' + JSON.stringify(keys))
+  log({
+    context,
+    message: `keys`,
+    debug: keys,
+  })
 
   const keyPriorities = keys.map((key) => priorityMap[key])
   const priority = Math.max(...keyPriorities)
@@ -190838,7 +190866,11 @@ const resolveVersionKeyIncrement = (
     (key) => priorityMap[key] === priority
   )
 
-  core.debug('versionKey: ' + versionKey)
+  log({
+    context,
+    message: `versionKey`,
+    debug: versionKey,
+  })
 
   const versionKeyIncrement = versionKey || config['version-resolver'].default
 
@@ -190888,10 +190920,15 @@ const generateReleaseInfo = ({
   const versionKeyIncrement = resolveVersionKeyIncrement(
     mergedPullRequests,
     config,
-    isPreRelease
+    isPreRelease,
+    context
   )
 
-  core.debug('versionKeyIncrement: ' + versionKeyIncrement)
+  log({
+    context,
+    message: `versionKeyIncrement`,
+    debug: versionKeyIncrement,
+  })
 
   const versionInfo = getVersionInfo(
     lastRelease,
@@ -190904,7 +190941,11 @@ const generateReleaseInfo = ({
     config['prerelease-identifier']
   )
 
-  core.debug('versionInfo: ' + JSON.stringify(versionInfo, null, 2))
+  log({
+    context,
+    message: `versionInfo`,
+    debug: versionInfo,
+  })
 
   if (versionInfo) {
     body = template(body, versionInfo)
@@ -190916,7 +190957,11 @@ const generateReleaseInfo = ({
     tag = template(tag, versionInfo)
   }
 
-  core.debug('tag: ' + tag)
+  log({
+    context,
+    message: `tag: ${tag}`,
+    debug: true,
+  })
 
   if (name === undefined) {
     name = versionInfo
@@ -190926,7 +190971,11 @@ const generateReleaseInfo = ({
     name = template(name, versionInfo)
   }
 
-  core.debug('name: ' + name)
+  log({
+    context,
+    message: `name: ${name}`,
+    debug: true,
+  })
 
   // Tags are not supported as `target_commitish` by Github API.
   // GITHUB_REF or the ref from webhook start with `refs/tags/`, so we handle
